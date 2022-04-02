@@ -1,0 +1,32 @@
+FROM php:7.3.6-fpm-alpine3.9 as builder
+
+RUN apk add --no-cache openssl bash mysql-client npm nodejs
+RUN docker-php-ext-install pdo pdo_mysql
+
+RUN curl -s https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+WORKDIR /var/www
+RUN rm -rf /var/www/html
+RUN ln -s public html
+
+COPY . /var/www
+
+RUN composer install \
+    && php artisan key:generate \
+    && php artisan config:cache
+
+RUN chmod 777 -R /var/www/storage
+RUN npm install
+
+FROM php:7.3.6-fpm-alpine3.9
+RUN apk add --no-cache mysql-client
+RUN docker-php-ext-install pdo pdo_mysql
+
+WORKDIR /var/www
+RUN rm -rf /var/www/html
+
+COPY --from=builder /var/www .
+
+EXPOSE 9000
+
+ENTRYPOINT ["php-fpm"]
